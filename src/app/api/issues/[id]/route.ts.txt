@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import IssueModel from '@/lib/models/Issue';
 import { broadcast } from '@/lib/websocket';
