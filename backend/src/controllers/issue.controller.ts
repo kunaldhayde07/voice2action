@@ -401,32 +401,67 @@ export const getNearbyIssues = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { lat, lng, radius = '5000', limit = '20' } = req.query;
+    const {
+      lat,
+      lng,
+      radius = '5000',
+      limit = '20',
+    } = req.query;
 
     if (!lat || !lng) {
-      sendError(res, 'lat and lng are required', 400);
+      sendError(
+        res,
+        'lat and lng are required',
+        400
+      );
       return;
     }
 
-    const issues = await Issue.find({
-      location: {
-  $geoWithin: {
-    $centerSphere: [
-      [
-        parseFloat(lng as string),
-        parseFloat(lat as string),
-      ],
-      parseFloat(radius as string) / 6378100,
-    ],
-  },
-},
+    // Fetch issues normally
+    const allIssues = await Issue.find({
       status: { $ne: 'resolved' },
     })
       .populate('createdBy', 'name avatar')
-      .limit(parseInt(limit as string, 10))
       .lean();
 
-    sendSuccess(res, 'Nearby issues retrieved', { issues });
+    // Filter nearby manually
+    const nearbyIssues = allIssues.filter(
+      (issue: any) => {
+        if (
+          !issue.location ||
+          !issue.location.coordinates
+        ) {
+          return false;
+        }
+
+        const [issLng, issLat] =
+          issue.location.coordinates;
+
+        const distance =
+          calculateDistance(
+            parseFloat(lat as string),
+            parseFloat(lng as string),
+            issLat,
+            issLng
+          );
+
+        return (
+          distance <=
+          parseFloat(radius as string)
+        );
+      }
+    );
+
+    sendSuccess(
+      res,
+      'Nearby issues retrieved',
+      {
+        issues: nearbyIssues.slice(
+          0,
+          parseInt(limit as string, 10)
+        ),
+      }
+    );
   } catch (error) {
     next(error);
   }
@@ -491,3 +526,38 @@ export const reverseGeocodeController = async (
     next(error);
   }
 };
+
+function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371e3;
+
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+
+  const Δφ =
+    ((lat2 - lat1) * Math.PI) / 180;
+
+  const Δλ =
+    ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) *
+      Math.sin(Δφ / 2) +
+    Math.cos(φ1) *
+      Math.cos(φ2) *
+      Math.sin(Δλ / 2) *
+      Math.sin(Δλ / 2);
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return R * c;
+}
