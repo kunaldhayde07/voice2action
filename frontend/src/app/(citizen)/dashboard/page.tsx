@@ -240,7 +240,10 @@ function UserStatsBanner() {
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, hasHydrated } = useAuth();
+  if (!hasHydrated) {
+  return null;
+  }
   const { issues, isLoading, fetchIssues } = useIssues({ autoFetch: false });
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
