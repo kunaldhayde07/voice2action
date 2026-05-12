@@ -11,6 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+   metadataBase: new URL('https://voice2action.vercel.app'),
   title: {
     default: 'Voice2Action — Local Issue Voting Platform',
     template: '%s | Voice2Action',
