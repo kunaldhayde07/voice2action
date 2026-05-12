@@ -26,6 +26,8 @@ const startServer = async () => {
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
+    console.error('FULL ERROR:', error);
+    console.error('STACK:', (error as Error).stack);
     process.exit(1);
   }
 };
@@ -34,6 +36,8 @@ const startServer = async () => {
 process.on('unhandledRejection', (err: Error) => {
   logger.error('UNHANDLED REJECTION! Shutting down...');
   logger.error(err.name, err.message);
+  console.error('FULL ERROR:', err);
+  console.error('STACK:', err.stack);
   httpServer.close(() => {
     process.exit(1);
   });
@@ -43,6 +47,8 @@ process.on('unhandledRejection', (err: Error) => {
 process.on('uncaughtException', (err: Error) => {
   logger.error('UNCAUGHT EXCEPTION! Shutting down...');
   logger.error(err.name, err.message);
+  console.error('FULL ERROR:', err);
+  console.error('STACK:', err.stack);
   process.exit(1);
 });
 
