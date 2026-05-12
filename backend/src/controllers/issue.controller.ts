@@ -20,19 +20,69 @@ export const createIssue = async (
 ): Promise<void> => {
   try {
     const body = req.body;
-    const files: any[] = req.files as any[];
+   const files = (req.files as any[]) || [];
 
-    // Parse body fields (from multipart form data)
-    const latitude = parseFloat(body.latitude);
-    const longitude = parseFloat(body.longitude);
-    const tags = body.tags ? JSON.parse(body.tags) : [];
+// Validate required fields
+if (
+  !body.title ||
+  !body.description ||
+  !body.category ||
+  !body.latitude ||
+  !body.longitude ||
+  !body.address
+  ) {
+  sendError(
+    res,
+    'All required fields are required',
+    400
+  );
+  return;
+  }
+
+  // Safe coordinate parsing
+  const latitude = Number(body.latitude);
+  const longitude = Number(body.longitude);
+
+  // Validate coordinates
+  if (
+  Number.isNaN(latitude) ||
+  Number.isNaN(longitude)
+  ) {
+  sendError(
+    res,
+    'Invalid latitude or longitude',
+    400
+  );
+  return;
+  }
+
+  // Parse tags safely
+  let tags: string[] = [];
+
+  try {
+  tags = body.tags
+    ? JSON.parse(body.tags)
+    : [];
+  } catch {
+  tags = [];
+  }
 
     // Process uploaded images
     const images: string[] = [];
     if (files && files.length > 0) {
       for (const file of files) {
-        await compressImage(file.path);
-        images.push(`/uploads/issues/${file.filename}`);
+        try {
+          await compressImage(file.path);
+
+          images.push(
+          `/uploads/issues/${file.filename}`
+          );
+          } catch (compressionError) {
+          console.error(
+          'Image compression failed:',
+          compressionError
+        );
+        }
       }
     }
 
