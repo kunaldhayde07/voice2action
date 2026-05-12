@@ -11,7 +11,10 @@ export const requireAdmin = (
     return;
   }
 
-  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+  if (
+  (req.user as any).role !== 'admin' &&
+  (req.user as any).role !== 'super_admin'
+  ) {
     sendError(res, 'Access denied. Admin privileges required.', 403);
     return;
   }
@@ -29,7 +32,7 @@ export const requireSuperAdmin = (
     return;
   }
 
-  if (req.user.role !== 'super_admin') {
+  if ((req.user as any).role !== 'super_admin') {
     sendError(res, 'Access denied. Super admin privileges required.', 403);
     return;
   }

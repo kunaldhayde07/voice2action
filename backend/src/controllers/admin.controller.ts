@@ -236,7 +236,7 @@ export const verifyIssue = async (
     const { createNotification } = await import('../services/notification.service');
     await createNotification({
       recipient: issue.createdBy,
-      sender: req.user!._id,
+      sender: (req.user as any)!._id,
       type: 'issue_verified',
       title: '✅ Your issue has been verified!',
       message: `Your issue "${issue.title}" has been verified by an admin.`,
