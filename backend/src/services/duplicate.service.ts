@@ -21,31 +21,65 @@ export const checkForDuplicates = async (
   category: string,
   excludeIssueId?: string
 ): Promise<DuplicateCheckResult> => {
+  // Simple Mongo query WITHOUT geospatial operators
   const query: Record<string, unknown> = {
-   location: {
-    $geoWithin: {
-    $centerSphere: [
-      [longitude, latitude],
-      DUPLICATE_DETECTION_RADIUS_METERS / 6378100,
-    ],
-    },
-  },
     category,
-    status: { $nin: ['resolved', 'rejected', 'duplicate'] },
+    status: {
+      $nin: ['resolved', 'rejected', 'duplicate'],
+    },
   };
 
+  // Exclude current issue during updates
   if (excludeIssueId) {
     query._id = { $ne: excludeIssueId };
   }
 
-  const nearbyIssues = (await Issue.find(query)
-    .select('title category status votesCount address location createdAt')
-    .limit(5)
-    .lean()) as unknown as (IIssue & { location: { coordinates: number[] } })[];
+  // Fetch candidate issues
+  const allIssues = (await Issue.find(query)
+    .select(
+      'title category status votesCount address location createdAt'
+    )
+    .limit(50)
+    .lean()) as unknown as (IIssue & {
+    location?: { coordinates?: number[] };
+  })[];
 
-  const issuesWithDistance = nearbyIssues.map((issue) => {
+  // Filter nearby issues manually using Haversine formula
+  const nearbyIssues = allIssues.filter((issue) => {
+    if (
+      !issue.location ||
+      !issue.location.coordinates ||
+      issue.location.coordinates.length < 2
+    ) {
+      return false;
+    }
+
     const [issLng, issLat] = issue.location.coordinates;
-    const distance = calculateDistance(latitude, longitude, issLat, issLng);
+
+    const distance = calculateDistance(
+      latitude,
+      longitude,
+      issLat,
+      issLng
+    );
+
+    return (
+      distance <=
+      DUPLICATE_DETECTION_RADIUS_METERS
+    );
+  });
+
+  // Format response
+  const issuesWithDistance = nearbyIssues.map((issue) => {
+    const [issLng, issLat] =
+      issue.location!.coordinates!;
+
+    const distance = calculateDistance(
+      latitude,
+      longitude,
+      issLat,
+      issLng
+    );
 
     return {
       _id: issue._id.toString(),
@@ -71,17 +105,31 @@ function calculateDistance(
   lat2: number,
   lon2: number
 ): number {
-  const R = 6371e3; // Earth's radius in meters
+  const R = 6371e3;
+
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const Δφ =
+    ((lat2 - lat1) * Math.PI) / 180;
+
+  const Δλ =
+    ((lon2 - lon1) * Math.PI) / 180;
 
   const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    Math.sin(Δφ / 2) *
+      Math.sin(Δφ / 2) +
+    Math.cos(φ1) *
+      Math.cos(φ2) *
+      Math.sin(Δλ / 2) *
+      Math.sin(Δλ / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
 
   return R * c;
 }
