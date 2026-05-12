@@ -22,15 +22,14 @@ export const checkForDuplicates = async (
   excludeIssueId?: string
 ): Promise<DuplicateCheckResult> => {
   const query: Record<string, unknown> = {
-    location: {
-      $near: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude],
-        },
-        $maxDistance: DUPLICATE_DETECTION_RADIUS_METERS,
-      },
+   location: {
+    $geoWithin: {
+    $centerSphere: [
+      [longitude, latitude],
+      DUPLICATE_DETECTION_RADIUS_METERS / 6378100,
+    ],
     },
+  },
     category,
     status: { $nin: ['resolved', 'rejected', 'duplicate'] },
   };
