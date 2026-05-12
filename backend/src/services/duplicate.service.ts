@@ -42,7 +42,7 @@ export const checkForDuplicates = async (
   const nearbyIssues = (await Issue.find(query)
     .select('title category status votesCount address location createdAt')
     .limit(5)
-    .lean()) as (IIssue & { location: { coordinates: number[] } })[];
+    .lean()) as unknown as (IIssue & { location: { coordinates: number[] } })[];
 
   const issuesWithDistance = nearbyIssues.map((issue) => {
     const [issLng, issLat] = issue.location.coordinates;

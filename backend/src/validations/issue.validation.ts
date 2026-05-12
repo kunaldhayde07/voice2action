@@ -12,7 +12,7 @@ export const createIssueSchema = z.object({
     .min(10, 'Description must be at least 10 characters')
     .max(2000, 'Description cannot exceed 2000 characters')
     .trim(),
-  category: z.enum(ISSUE_CATEGORIES as [string, ...string[]]),
+  category: z.enum(ISSUE_CATEGORIES as unknown as [string, ...string[]]),
   latitude: z
     .number()
     .min(-90, 'Invalid latitude')

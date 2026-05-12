@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import logger from '../utils/logger';
 
-interface AppError extends Error {
+interface AppErrorType extends Error {
   statusCode?: number;
   status?: string;
   isOperational?: boolean;

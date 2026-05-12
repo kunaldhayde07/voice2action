@@ -21,7 +21,7 @@ export const createIssue = async (
 ): Promise<void> => {
   try {
     const body = req.body;
-    const files = req.files as Express.Multer.File[];
+    const files: any[] = req.files as any[];
 
     // Parse body fields (from multipart form data)
     const latitude = parseFloat(body.latitude);
