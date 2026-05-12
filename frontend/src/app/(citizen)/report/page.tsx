@@ -1,6 +1,11 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react'; 
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -354,13 +359,27 @@ export default function ReportIssuePage() {
   };
 
   // After geo detects, update form values
-  useState(() => {
-    if (geo.hasLocation && geo.latitude && geo.longitude) {
-      setValue('latitude', geo.latitude, { shouldValidate: true });
-      setValue('longitude', geo.longitude, { shouldValidate: true });
-      setValue('address', geo.address, { shouldValidate: true });
-    }
-  });
+  useEffect(() => {
+  if (geo.hasLocation && geo.latitude && geo.longitude) {
+    setValue('latitude', geo.latitude, {
+      shouldValidate: true,
+    });
+
+    setValue('longitude', geo.longitude, {
+      shouldValidate: true,
+    });
+
+    setValue('address', geo.address, {
+      shouldValidate: true,
+    });
+  }
+  }, [
+  geo.hasLocation,
+  geo.latitude,
+  geo.longitude,
+  geo.address,
+  setValue,
+  ]);
 
   // Check for duplicate issues
   const checkDuplicates = useCallback(
