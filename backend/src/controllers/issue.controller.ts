@@ -57,15 +57,23 @@ if (
   }
 
   // Parse tags safely
-  let tags: string[] = [];
+let tags: string[] = [];
 
+if (body.tags) {
   try {
-  tags = body.tags
-    ? JSON.parse(body.tags)
-    : [];
-  } catch {
-  tags = [];
+    if (typeof body.tags === 'string') {
+      tags = body.tags
+        .split(',')
+        .map((tag: string) => tag.trim())
+        .filter(Boolean);
+    } else if (Array.isArray(body.tags)) {
+      tags = body.tags;
+    }
+  } catch (error) {
+    console.error('Tags parsing failed:', error);
+    tags = [];
   }
+}
 
     // Process uploaded images
     const images: string[] = [];
