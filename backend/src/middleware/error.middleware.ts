@@ -1,26 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import logger from '../utils/logger';
+import { any } from 'zod';
 
-interface AppErrorType extends Error {
-  statusCode?: number;
-  status?: string;
-  isOperational?: boolean;
-  code?: number;
-  keyValue?: Record<string, unknown>;
-  errors?: Record<string, { message: string }>;
-  path?: string;
-  value?: string;
-}
 
-const handleCastError = (err: AppError): AppError => {
+
+const handleCastError = (err: any): AppError => {
   const message = `Invalid ${err.path}: ${err.value}`;
   const error = new Error(message) as AppError;
   error.statusCode = 400;
   return error;
 };
 
-const handleDuplicateKeyError = (err: AppError): AppError => {
+const handleDuplicateKeyError = (err: any): AppError => {
   const field = Object.keys(err.keyValue || {})[0];
   const message = `${field} already exists. Please use a different ${field}.`;
   const error = new Error(message) as AppError;
@@ -68,7 +60,7 @@ export const errorHandler = (
   if (err instanceof mongoose.Error.CastError) {
     error = handleCastError(err as AppError);
   }
-  if ((err as AppError).code === 11000) {
+  if ((err as any).code === 11000) {
     error = handleDuplicateKeyError(err);
   }
   if (err instanceof mongoose.Error.ValidationError) {

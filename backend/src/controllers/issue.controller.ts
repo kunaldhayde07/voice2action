@@ -13,6 +13,7 @@ import { recalculatePriorityScore } from '../services/priority.service';
 import User from '../models/User.model';
 import { REPUTATION_POINTS } from '../config/constants';
 import path from 'path';
+import { any } from 'zod';
 
 export const createIssue = async (
   req: Request,
@@ -47,7 +48,7 @@ export const createIssue = async (
       urgency: body.urgency || 'medium',
       tags,
       images,
-      createdBy: req.user!._id.toString(),
+      createdBy: (req.user as any)!._id.toString(),
     });
 
     const populatedIssue = await Issue.findById(issue._id)
@@ -98,7 +99,7 @@ export const getIssues = async (
     let votedIssueIds: string[] = [];
     if (req.user) {
       const { getUserVotedIssues } = await import('../services/vote.service');
-      votedIssueIds = await getUserVotedIssues(req.user._id.toString());
+      votedIssueIds = await getUserVotedIssues((req.user as any)._id.toString());
     }
 
     const issuesWithVoteStatus = issues.map((issue) => ({
@@ -137,7 +138,7 @@ export const getIssueById = async (
     let hasVoted = false;
     if (req.user) {
       const { hasUserVoted } = await import('../services/vote.service');
-      hasVoted = await hasUserVoted(req.params.id, req.user._id.toString());
+      hasVoted = await hasUserVoted(req.params.id, (req.user as any)._id.toString());
     }
 
     // Get status logs
@@ -189,7 +190,7 @@ export const updateIssueStatus = async (
       issue: issue._id,
       previousStatus,
       newStatus: status,
-      changedBy: req.user!._id,
+      changedBy: (req.user as any)!._id,
       note,
     });
 
@@ -220,7 +221,7 @@ export const updateIssueStatus = async (
 
     await createNotification({
       recipient: issue.createdBy,
-      sender: req.user!._id,
+      sender: (req.user as any)!._id,
       type: notificationType,
       title: notificationTitle,
       message: notificationMessage,
@@ -234,13 +235,13 @@ export const updateIssueStatus = async (
         issueId: issue._id,
         status,
         priorityScore,
-        updatedBy: req.user!._id,
+        updatedBy: (req.user as any)!._id,
       });
 
       if (status === 'resolved') {
         io.emit(SOCKET_EVENTS.ISSUE_RESOLVED, {
           issueId: issue._id,
-          resolvedBy: req.user!._id,
+          resolvedBy: (req.user as any)!._id,
         });
       }
     } catch {
@@ -267,8 +268,8 @@ export const deleteIssue = async (
     }
 
     // Only creator or admin can delete
-    const isCreator = issue.createdBy.toString() === req.user!._id.toString();
-    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+    const isCreator = issue.createdBy.toString() === (req.user as any)!._id.toString();
+    const isAdmin = (req.user as any)!.role === 'admin' || (req.user as any)!.role === 'super_admin';
 
     if (!isCreator && !isAdmin) {
       sendError(res, 'Not authorized to delete this issue', 403);
@@ -318,7 +319,7 @@ export const getMyIssues = async (
     const skip = (pagination.page - 1) * pagination.limit;
 
     const filters: Record<string, unknown> = {
-      createdBy: req.user!._id,
+      createdBy: (req.user as any)!._id,
     };
     if (req.query.status) filters.status = req.query.status;
 
