@@ -1,8 +1,10 @@
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  process.env.NEXT_PUBLIC_API_URL ||
+  'https://voice2action-backend-hs3n.onrender.com';
 
 export const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+  process.env.NEXT_PUBLIC_SOCKET_URL ||
+  'https://voice2action-backend-hs3n.onrender.com';
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Voice2Action';
 
