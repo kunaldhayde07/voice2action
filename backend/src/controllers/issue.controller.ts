@@ -402,14 +402,16 @@ export const getNearbyIssues = async (
 
     const issues = await Issue.find({
       location: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(lng as string), parseFloat(lat as string)],
-          },
-          $maxDistance: parseFloat(radius as string),
-        },
-      },
+  $geoWithin: {
+    $centerSphere: [
+      [
+        parseFloat(lng as string),
+        parseFloat(lat as string),
+      ],
+      parseFloat(radius as string) / 6378100,
+    ],
+  },
+},
       status: { $ne: 'resolved' },
     })
       .populate('createdBy', 'name avatar')

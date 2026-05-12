@@ -72,17 +72,15 @@ export const getIssuesService = async (
   // Geo filter
   if (filters.lat && filters.lng) {
     const radius = (filters.radius as number) || 5000; // default 5km
-    query.location = {
-      $near: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [filters.lng, filters.lat],
-        },
-        $maxDistance: radius,
-      },
-    };
+   query.location = {
+  $geoWithin: {
+    $centerSphere: [
+      [filters.lng, filters.lat],
+      radius / 6378100,
+    ],
+  },
   }
-
+};
   const skip = (pagination.page - 1) * pagination.limit;
 
   const [issues, total] = await Promise.all([

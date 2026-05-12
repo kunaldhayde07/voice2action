@@ -24,14 +24,13 @@ export const calculatePriorityScore = async (
   // Nearby issue density (within 1km)
   const nearbyCount = await Issue.countDocuments({
     location: {
-      $near: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [longitude, latitude],
-        },
-        $maxDistance: 1000, // 1km
-      },
-    },
+  $geoWithin: {
+    $centerSphere: [
+      [longitude, latitude],
+      1000 / 6378100, // 1km
+    ],
+  },
+  },
     status: { $ne: 'resolved' },
   });
   const nearbyDensityScore = Math.min(nearbyCount * 2, 20); // Cap at 20 points
