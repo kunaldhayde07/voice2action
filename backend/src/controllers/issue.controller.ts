@@ -12,8 +12,6 @@ import { createNotification } from '../services/notification.service';
 import { recalculatePriorityScore } from '../services/priority.service';
 import User from '../models/User.model';
 import { REPUTATION_POINTS } from '../config/constants';
-import path from 'path';
-import { any } from 'zod';
 
 export const createIssue = async (
   req: Request,
