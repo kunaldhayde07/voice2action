@@ -11,6 +11,7 @@ import passport from 'passport';
 import { errorHandler } from './middleware/error.middleware';
 import { generalLimiter } from './middleware/rateLimiter.middleware';
 import { configurePassport } from './config/passport';
+import { rejectForbiddenGeoOperators } from './middleware/mongoOperator.middleware';
 
 // Routes
 import authRoutes from './routes/auth.routes';
@@ -49,6 +50,7 @@ app.use(cookieParser());
 app.use(compression());
 
 // NoSQL Injection Prevention
+app.use(rejectForbiddenGeoOperators);
 app.use(mongoSanitize());
 
 // Logging
