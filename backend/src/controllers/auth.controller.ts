@@ -1,3 +1,4 @@
+import { IUser } from '../types';
 import { Request, Response, NextFunction } from 'express';
 import { registerUser, loginUser, generateTokensForOAuthUser } from '../services/auth.service';
 import { verifyRefreshToken } from '../utils/jwt.utils';
@@ -126,7 +127,7 @@ export const googleCallback = async (
       return;
     }
 
-    const { accessToken, refreshToken } = generateTokensForOAuthUser(user);
+    const { accessToken, refreshToken } = generateTokensForOAuthUser(user as IUser);
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -139,12 +140,12 @@ export const googleCallback = async (
     res.redirect(
       `${process.env.FRONTEND_URL}/auth/callback?token=${accessToken}&user=${encodeURIComponent(
         JSON.stringify({
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-        })
+        _id: (user as IUser)._id,
+        name: (user as IUser).name,
+        email: (user as IUser).email,
+        role: (user as IUser).role,
+        avatar: (user as IUser).avatar,
+})
       )}`
     );
   } catch (error) {
@@ -155,7 +156,9 @@ export const googleCallback = async (
 
 export const getMe = async (req: Request, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user?._id).select('-password');
+    const user = await User.findById(
+    (req.user as IUser)?._id
+    ).select('-password');
     sendSuccess(res, 'User profile retrieved', { user });
   } catch (error) {
     sendError(res, 'Failed to retrieve profile', 500);

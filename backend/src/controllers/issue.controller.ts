@@ -1,3 +1,4 @@
+import { getUserVotedIssues, hasUserVoted } from '../services/vote.service';
 import { Request, Response, NextFunction } from 'express';
 import { createIssueService, getIssuesService } from '../services/issue.service';
 import { checkForDuplicates } from '../services/duplicate.service';
@@ -12,6 +13,7 @@ import { createNotification } from '../services/notification.service';
 import { recalculatePriorityScore } from '../services/priority.service';
 import User from '../models/User.model';
 import { REPUTATION_POINTS } from '../config/constants';
+import { reverseGeocode } from '../services/geocoding.service';
 
 export const createIssue = async (
   req: Request,
@@ -153,11 +155,14 @@ export const getIssues = async (
 
     // Check if user has voted on these issues
     let votedIssueIds: string[] = [];
-    if (req.user) {
-      const { getUserVotedIssues } = await import('../services/vote.service');
-      votedIssueIds = await getUserVotedIssues((req.user as any)._id.toString());
-    }
 
+    if (req.user) {
+    votedIssueIds =
+    await getUserVotedIssues(
+      (req.user as any)._id.toString()
+    );
+    }
+    
     const issuesWithVoteStatus = issues.map((issue) => ({
       ...issue,
       hasVoted: votedIssueIds.includes(issue._id.toString()),
@@ -190,12 +195,15 @@ export const getIssueById = async (
     // Increment views
     await Issue.findByIdAndUpdate(req.params.id, { $inc: { viewsCount: 1 } });
 
-    // Check vote status
-    let hasVoted = false;
-    if (req.user) {
-      const { hasUserVoted } = await import('../services/vote.service');
-      hasVoted = await hasUserVoted(req.params.id, (req.user as any)._id.toString());
-    }
+  // Check vote status
+  let hasVoted = false;
+
+  if (req.user) {
+  hasVoted = await hasUserVoted(
+    req.params.id,
+    (req.user as any)._id.toString()
+  );
+  } 
 
     // Get status logs
     const statusLogs = await IssueStatusLog.find({ issue: req.params.id })
@@ -515,11 +523,10 @@ export const reverseGeocodeController = async (
       return;
     }
 
-    const { reverseGeocode } = await import('../services/geocoding.service');
     const result = await reverseGeocode(
-      parseFloat(lat as string),
-      parseFloat(lng as string)
-    );
+  parseFloat(lat as string),
+  parseFloat(lng as string)
+);
 
     sendSuccess(res, 'Geocoding successful', result);
   } catch (error) {

@@ -7,6 +7,7 @@ import { sendSuccess } from '../utils/response.utils';
 import { getPaginationOptions, createPaginatedResult } from '../utils/pagination.utils';
 import { getIO } from '../socket/socket';
 import { SOCKET_EVENTS } from '../config/constants';
+import { createNotification } from '../services/notification.service';
 
 export const getAdminDashboard = async (
   req: Request,
@@ -233,17 +234,20 @@ export const verifyIssue = async (
       return;
     }
 
-    const { createNotification } = await import('../services/notification.service');
     await createNotification({
       recipient: issue.createdBy,
-      sender: (req.user as any)!._id,
+      sender: (req.user as any)?._id,
       type: 'issue_verified',
       title: '✅ Your issue has been verified!',
       message: `Your issue "${issue.title}" has been verified by an admin.`,
       issue: issue._id,
     });
 
-    sendSuccess(res, 'Issue verified successfully', { issue });
+    sendSuccess(
+      res,
+      'Issue verified successfully',
+      { issue }
+    );
   } catch (error) {
     next(error);
   }

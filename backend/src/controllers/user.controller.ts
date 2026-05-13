@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import User from '../models/User.model';
 import Issue from '../models/Issue.model';
 import Vote from '../models/Vote.model';
+import { IUser } from '../types';
 import { sendSuccess, sendError } from '../utils/response.utils';
 import { hashPassword } from '../utils/bcrypt.utils';
 
@@ -49,10 +50,14 @@ export const updateProfile = async (
       updateData.avatar = `/uploads/issues/${req.file.filename}`;
     }
 
-    const user = await User.findByIdAndUpdate(req.user!._id, updateData, {
-      new: true,
-      runValidators: true,
-    }).select('-password');
+    const user = await User.findByIdAndUpdate(
+    (req.user as IUser)._id,
+    updateData,
+    {
+    new: true,
+    runValidators: true,
+    }
+    ).select('-password');
 
     sendSuccess(res, 'Profile updated successfully', { user });
   } catch (error) {
@@ -68,7 +73,9 @@ export const changePassword = async (
   try {
     const { currentPassword, newPassword } = req.body;
 
-    const user = await User.findById(req.user!._id).select('+password');
+    const user = await User.findById(
+    (req.user as IUser)._id
+    ).select('+password');
     if (!user || !user.password) {
       sendError(res, 'Cannot change password for OAuth accounts', 400);
       return;
@@ -81,7 +88,10 @@ export const changePassword = async (
     }
 
     const hashedPassword = await hashPassword(newPassword);
-    await User.findByIdAndUpdate(req.user!._id, { password: hashedPassword });
+    await User.findByIdAndUpdate(
+    (req.user as IUser)._id,
+    { password: hashedPassword }
+    );
 
     sendSuccess(res, 'Password changed successfully');
   } catch (error) {

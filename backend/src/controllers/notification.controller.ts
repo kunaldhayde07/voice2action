@@ -4,18 +4,27 @@ import { markNotificationsAsRead, getUnreadCount } from '../services/notificatio
 import { sendSuccess } from '../utils/response.utils';
 import { getPaginationOptions, createPaginatedResult } from '../utils/pagination.utils';
 
+const getUserId = (req: Request): string => {
+  if (!req.user) {
+    throw new Error('Unauthorized');
+  }
+  return req.user._id.toString();
+};
+
 export const getNotifications = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const pagination = getPaginationOptions(req.query as Record<string, string>);
+    const pagination = getPaginationOptions(req.query as Record<string, string | undefined>);
     const skip = (pagination.page - 1) * pagination.limit;
+    const userId = getUserId(req);
 
-    const query: Record<string, unknown> = { recipient: req.user!._id };
-    if (req.query.isRead !== undefined) {
-      query.isRead = req.query.isRead === 'true';
+    const query: Record<string, unknown> = { recipient: req.user._id };
+    const isRead = typeof req.query.isRead === 'string' ? req.query.isRead === 'true' : undefined;
+    if (isRead !== undefined) {
+      query.isRead = isRead;
     }
 
     const [notifications, total, unreadCount] = await Promise.all([
@@ -43,8 +52,13 @@ export const markAsRead = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { notificationIds } = req.body;
-    await markNotificationsAsRead(req.user!._id.toString(), notificationIds);
+    const { notificationIds } = req.body as { notificationIds?: string | string[] };
+    const sanitizedIds = Array.isArray(notificationIds)
+      ? notificationIds
+      : notificationIds
+      ? [notificationIds]
+      : undefined;
+    await markNotificationsAsRead(getUserId(req), sanitizedIds);
     sendSuccess(res, 'Notifications marked as read');
   } catch (error) {
     next(error);
