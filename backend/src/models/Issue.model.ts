@@ -178,9 +178,6 @@ IssueSchema.index({
   status: 1,
 });
 
-// Geospatial Index
-IssueSchema.index({ 'location.coordinates': '2dsphere' });
-
 // Text Search Index
 IssueSchema.index({
   title: 'text',
