@@ -17,6 +17,21 @@ interface CreateIssueData {
   createdBy: string;
 }
 
+// Haversine formula to calculate distance between two coordinates
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6378100; // Earth's radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 export const createIssueService = async (data: CreateIssueData) => {
   const priorityScore = await calculatePriorityScore({
     votesCount: 0,
@@ -72,26 +87,38 @@ export const getIssuesService = async (
   // Geo filter
   if (filters.lat && filters.lng) {
     const radius = (filters.radius as number) || 5000; // default 5km
-   query.location = {
-  $geoWithin: {
-    $centerSphere: [
-      [filters.lng, filters.lat],
-      radius / 6378100,
-    ],
-  },
+    // Geo filter will be applied after fetch
   }
-};
+
   const skip = (pagination.page - 1) * pagination.limit;
 
   const [issues, total] = await Promise.all([
     Issue.find(query)
       .populate('createdBy', 'name avatar reputationPoints role')
       .sort(pagination.sort || '-priorityScore')
-      .skip(skip)
-      .limit(pagination.limit)
       .lean(),
     Issue.countDocuments(query),
   ]);
 
-  return { issues, total };
+  // Apply geo filter manually if needed
+  let filteredIssues = issues;
+  if (filters.lat && filters.lng) {
+    const lat = filters.lat as number;
+    const lng = filters.lng as number;
+    const radius = (filters.radius as number) || 5000; // default 5km
+
+    filteredIssues = (issues as any[]).filter((issue: any) => {
+      if (!issue.location || !issue.location.coordinates || issue.location.coordinates.length < 2) {
+        return false;
+      }
+      const [issueLng, issueLat] = issue.location.coordinates;
+      const distance = calculateDistance(lat, lng, issueLat, issueLng);
+      return distance <= radius;
+    });
+  }
+
+  return { 
+    issues: (filteredIssues as any[]).slice(skip, skip + pagination.limit), 
+    total: filteredIssues.length 
+  };
 };

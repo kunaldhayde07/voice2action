@@ -485,24 +485,29 @@ export const getMapIssues = async (
 
     const query: Record<string, unknown> = {};
 
-    if (south && west && north && east) {
-      query.location = {
-        $geoWithin: {
-          $box: [
-            [parseFloat(west as string), parseFloat(south as string)],
-            [parseFloat(east as string), parseFloat(north as string)],
-          ],
-        },
-      };
-    }
-
     if (status) query.status = status;
     if (category) query.category = category;
 
-    const issues = await Issue.find(query)
+    let issues = await Issue.find(query)
       .select('title category status urgency location votesCount priorityScore address createdAt')
       .limit(500)
       .lean();
+
+    // Manual bounding box filter if coordinates provided
+    if (south && west && north && east) {
+      const southVal = parseFloat(south as string);
+      const westVal = parseFloat(west as string);
+      const northVal = parseFloat(north as string);
+      const eastVal = parseFloat(east as string);
+
+      issues = (issues as any[]).filter((issue: any) => {
+        if (!issue.location || !issue.location.coordinates || issue.location.coordinates.length < 2) {
+          return false;
+        }
+        const [lng, lat] = issue.location.coordinates;
+        return lat >= southVal && lat <= northVal && lng >= westVal && lng <= eastVal;
+      });
+    }
 
     sendSuccess(res, 'Map issues retrieved', { issues });
   } catch (error) {
