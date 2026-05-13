@@ -1,5 +1,6 @@
 import Issue from '../models/Issue.model';
-import { URGENCY_FACTORS } from '../config/constants';
+import { NEARBY_DENSITY_RADIUS_METERS, URGENCY_FACTORS } from '../config/constants';
+import { buildGeoWithinQuery } from '../utils/geo.utils';
 
 interface PriorityParams {
   votesCount: number;
@@ -9,21 +10,6 @@ interface PriorityParams {
   createdAt: Date;
   status: string;
 }
-
-// Haversine formula to calculate distance between two coordinates
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6378100; // Earth's radius in meters
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
 
 export const calculatePriorityScore = async (
   params: PriorityParams
@@ -36,24 +22,15 @@ export const calculatePriorityScore = async (
   // Urgency factor
   const urgencyFactor = URGENCY_FACTORS[urgency as keyof typeof URGENCY_FACTORS] || 5;
 
-  // Nearby issue density (within 1km) - using aggregation pipeline
-  const nearbyIssues = await Issue.find({
+  // Nearby issue density without $near, so count queries do not need geo sorting.
+  const nearbyCount = await Issue.countDocuments({
     status: { $ne: 'resolved' },
-    'location.coordinates': { $exists: true },
-  })
-    .select('location')
-    .limit(100)
-    .lean();
-
-  // Calculate distance manually for each issue
-  const nearbyCount = nearbyIssues.filter((issue: any) => {
-    if (!issue.location || !issue.location.coordinates || issue.location.coordinates.length < 2) {
-      return false;
-    }
-    const [issueLng, issueLat] = issue.location.coordinates;
-    const distance = calculateDistance(latitude, longitude, issueLat, issueLng);
-    return distance <= 1000; // 1km
-  }).length;
+    location: buildGeoWithinQuery(
+      latitude,
+      longitude,
+      NEARBY_DENSITY_RADIUS_METERS
+    ),
+  });
 
   const nearbyDensityScore = Math.min(nearbyCount * 2, 20); // Cap at 20 points
 

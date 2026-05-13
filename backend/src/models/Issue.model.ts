@@ -177,6 +177,7 @@ IssueSchema.index({
   category: 1,
   status: 1,
 });
+IssueSchema.index({ location: '2dsphere' });
 
 // Text Search Index
 IssueSchema.index({

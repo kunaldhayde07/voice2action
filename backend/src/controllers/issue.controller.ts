@@ -14,6 +14,14 @@ import { recalculatePriorityScore } from '../services/priority.service';
 import User from '../models/User.model';
 import { REPUTATION_POINTS } from '../config/constants';
 import { reverseGeocode } from '../services/geocoding.service';
+import {
+  buildGeoWithinQuery,
+  calculateDistanceMeters,
+  isValidLatitude,
+  isValidLongitude,
+  isValidRadius,
+} from '../utils/geo.utils';
+import { getQueryNumber, getQueryString } from '../utils/query.utils';
 
 export const createIssue = async (
   req: Request,
@@ -135,20 +143,38 @@ export const getIssues = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const pagination = getPaginationOptions(req.query as Record<string, string>);
+    const pagination = getPaginationOptions(req.query as Record<string, unknown>);
 
     const filters: Record<string, unknown> = {};
-    if (req.query.status) filters.status = req.query.status;
-    if (req.query.category) filters.category = req.query.category;
-    if (req.query.urgency) filters.urgency = req.query.urgency;
-    if (req.query.search) filters.search = req.query.search;
+    const status = getQueryString(req.query.status);
+    const category = getQueryString(req.query.category);
+    const urgency = getQueryString(req.query.urgency);
+    const search = getQueryString(req.query.search);
 
-    if (req.query.lat && req.query.lng) {
-      filters.lat = parseFloat(req.query.lat as string);
-      filters.lng = parseFloat(req.query.lng as string);
-      filters.radius = req.query.radius
-        ? parseFloat(req.query.radius as string)
-        : 5000;
+    if (status) filters.status = status;
+    if (category) filters.category = category;
+    if (urgency) filters.urgency = urgency;
+    if (search) filters.search = search;
+
+    const lat = getQueryNumber(req.query.lat);
+    const lng = getQueryNumber(req.query.lng);
+    const radius = getQueryNumber(req.query.radius) || 5000;
+
+    if (lat !== undefined || lng !== undefined) {
+      if (
+        lat === undefined ||
+        lng === undefined ||
+        !isValidLatitude(lat) ||
+        !isValidLongitude(lng) ||
+        !isValidRadius(radius)
+      ) {
+        sendError(res, 'Invalid latitude, longitude, or radius', 400);
+        return;
+      }
+
+      filters.lat = lat;
+      filters.lng = lng;
+      filters.radius = radius;
     }
 
     const { issues, total } = await getIssuesService(filters, pagination);
@@ -355,16 +381,24 @@ export const checkDuplicates = async (
 ): Promise<void> => {
   try {
     const { latitude, longitude, category } = req.query;
+    const lat = getQueryNumber(latitude);
+    const lng = getQueryNumber(longitude);
+    const categoryValue = getQueryString(category);
 
-    if (!latitude || !longitude || !category) {
+    if (lat === undefined || lng === undefined || !categoryValue) {
       sendError(res, 'latitude, longitude, and category are required', 400);
       return;
     }
 
+    if (!isValidLatitude(lat) || !isValidLongitude(lng)) {
+      sendError(res, 'Invalid latitude or longitude', 400);
+      return;
+    }
+
     const result = await checkForDuplicates(
-      parseFloat(latitude as string),
-      parseFloat(longitude as string),
-      category as string
+      lat,
+      lng,
+      categoryValue
     );
 
     sendSuccess(res, 'Duplicate check completed', result);
@@ -379,13 +413,14 @@ export const getMyIssues = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const pagination = getPaginationOptions(req.query as Record<string, string>);
+    const pagination = getPaginationOptions(req.query as Record<string, unknown>);
     const skip = (pagination.page - 1) * pagination.limit;
 
     const filters: Record<string, unknown> = {
       createdBy: (req.user as any)!._id,
     };
-    if (req.query.status) filters.status = req.query.status;
+    const status = getQueryString(req.query.status);
+    if (status) filters.status = status;
 
     const [issues, total] = await Promise.all([
       Issue.find(filters)
@@ -409,14 +444,15 @@ export const getNearbyIssues = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const {
-      lat,
-      lng,
-      radius = '5000',
-      limit = '20',
-    } = req.query;
+    const lat = getQueryNumber(req.query.lat);
+    const lng = getQueryNumber(req.query.lng);
+    const radius = getQueryNumber(req.query.radius) || 5000;
+    const limit = Math.min(
+      100,
+      Math.max(1, Math.floor(getQueryNumber(req.query.limit) || 20))
+    );
 
-    if (!lat || !lng) {
+    if (lat === undefined || lng === undefined) {
       sendError(
         res,
         'lat and lng are required',
@@ -425,40 +461,47 @@ export const getNearbyIssues = async (
       return;
     }
 
-    // Fetch issues normally
+    if (
+      !isValidLatitude(lat) ||
+      !isValidLongitude(lng) ||
+      !isValidRadius(radius)
+    ) {
+      sendError(res, 'Invalid latitude, longitude, or radius', 400);
+      return;
+    }
+
     const allIssues = await Issue.find({
       status: { $ne: 'resolved' },
+      location: buildGeoWithinQuery(lat, lng, radius),
     })
       .populate('createdBy', 'name avatar')
+      .limit(500)
       .lean();
 
-    // Filter nearby manually
-    const nearbyIssues = allIssues.filter(
-      (issue: any) => {
+    const nearbyIssues = allIssues
+      .map((issue: any) => {
         if (
           !issue.location ||
           !issue.location.coordinates
         ) {
-          return false;
+          return null;
         }
 
         const [issLng, issLat] =
           issue.location.coordinates;
 
         const distance =
-          calculateDistance(
-            parseFloat(lat as string),
-            parseFloat(lng as string),
+          calculateDistanceMeters(
+            lat,
+            lng,
             issLat,
             issLng
           );
 
-        return (
-          distance <=
-          parseFloat(radius as string)
-        );
-      }
-    );
+        return { ...issue, distance: Math.round(distance) };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => a.distance - b.distance);
 
     sendSuccess(
       res,
@@ -466,7 +509,7 @@ export const getNearbyIssues = async (
       {
         issues: nearbyIssues.slice(
           0,
-          parseInt(limit as string, 10)
+          limit
         ),
       }
     );
@@ -481,7 +524,12 @@ export const getMapIssues = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { south, west, north, east, status, category } = req.query;
+    const south = getQueryNumber(req.query.south);
+    const west = getQueryNumber(req.query.west);
+    const north = getQueryNumber(req.query.north);
+    const east = getQueryNumber(req.query.east);
+    const status = getQueryString(req.query.status);
+    const category = getQueryString(req.query.category);
 
     const query: Record<string, unknown> = {};
 
@@ -493,19 +541,35 @@ export const getMapIssues = async (
       .limit(500)
       .lean();
 
-    // Manual bounding box filter if coordinates provided
-    if (south && west && north && east) {
-      const southVal = parseFloat(south as string);
-      const westVal = parseFloat(west as string);
-      const northVal = parseFloat(north as string);
-      const eastVal = parseFloat(east as string);
+    const hasBounds =
+      south !== undefined ||
+      west !== undefined ||
+      north !== undefined ||
+      east !== undefined;
+
+    if (hasBounds) {
+      if (
+        south === undefined ||
+        west === undefined ||
+        north === undefined ||
+        east === undefined ||
+        !isValidLatitude(south) ||
+        !isValidLatitude(north) ||
+        !isValidLongitude(west) ||
+        !isValidLongitude(east) ||
+        south > north ||
+        west > east
+      ) {
+        sendError(res, 'Invalid map bounds', 400);
+        return;
+      }
 
       issues = (issues as any[]).filter((issue: any) => {
         if (!issue.location || !issue.location.coordinates || issue.location.coordinates.length < 2) {
           return false;
         }
         const [lng, lat] = issue.location.coordinates;
-        return lat >= southVal && lat <= northVal && lng >= westVal && lng <= eastVal;
+        return lat >= south && lat <= north && lng >= west && lng <= east;
       });
     }
 
@@ -521,55 +585,23 @@ export const reverseGeocodeController = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { lat, lng } = req.query;
+    const lat = getQueryNumber(req.query.lat);
+    const lng = getQueryNumber(req.query.lng);
 
-    if (!lat || !lng) {
+    if (lat === undefined || lng === undefined) {
       sendError(res, 'lat and lng are required', 400);
       return;
     }
 
-    const result = await reverseGeocode(
-  parseFloat(lat as string),
-  parseFloat(lng as string)
-);
+    if (!isValidLatitude(lat) || !isValidLongitude(lng)) {
+      sendError(res, 'Invalid latitude or longitude', 400);
+      return;
+    }
+
+    const result = await reverseGeocode(lat, lng);
 
     sendSuccess(res, 'Geocoding successful', result);
   } catch (error) {
     next(error);
   }
 };
-
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 6371e3;
-
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-
-  const Δφ =
-    ((lat2 - lat1) * Math.PI) / 180;
-
-  const Δλ =
-    ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(Δφ / 2) *
-      Math.sin(Δφ / 2) +
-    Math.cos(φ1) *
-      Math.cos(φ2) *
-      Math.sin(Δλ / 2) *
-      Math.sin(Δλ / 2);
-
-  const c =
-    2 *
-    Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a)
-    );
-
-  return R * c;
-}

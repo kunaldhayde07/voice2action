@@ -89,8 +89,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes
-UserSchema.index({ email: 1 });
-UserSchema.index({ googleId: 1 });
+// email and googleId indexes are created by the unique/sparse path options.
 UserSchema.index({ role: 1 });
 UserSchema.index({ reputationPoints: -1 });
 UserSchema.index({ createdAt: -1 });
